@@ -1,4 +1,4 @@
-#![doc = include_str!("../README.md")]
+#![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use k8s_openapi;
