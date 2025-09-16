@@ -2,7 +2,7 @@
 
 ## Overview
 
-*kubex* is a Rust library that provides utilities for Kubernetes clusters. It complements 
+*kubex* is a Rust library that provides utilities for Kubernetes. It complements 
 [kube](https://crates.io/crates/kube) and [k8s-openapi](https://crates.io/crates/k8s-openapi)
 crates, making it easier to detect contexts and explore API resources.
 
