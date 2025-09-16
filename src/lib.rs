@@ -7,6 +7,7 @@ pub use kube;
 pub mod discover;
 pub mod dynamic;
 
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::APIResource;
 use kube::config::Kubeconfig;
 
 /// Detects the Kubernetes context based on the provided `context` argument.
@@ -54,4 +55,27 @@ pub fn determine_namespace(namespace: Option<String>, context: &str) -> String {
             .unwrap_or_else(|| String::from("default")),
         Err(_) => String::from("default"),
     }
+}
+
+/// Finds and returns the `APIResource` that matches the given `resource` name from the list of `api_resources`.
+pub fn find_resource(target: &str, api_resources: &[APIResource]) -> Option<APIResource> {
+    api_resources
+        .iter()
+        .find(|api_resource| match_resource(target, api_resource))
+        .cloned()
+}
+
+/// Checks if the given `api_resource` matches the `target` resource name.
+/// Matching is done against the resource's name, singular name, short names, and group-qualified name.
+pub fn match_resource(target: &str, api_resource: &APIResource) -> bool {
+    api_resource.name == target
+        || api_resource.singular_name == target
+        || api_resource
+            .short_names
+            .as_ref()
+            .is_some_and(|short_names| short_names.contains(&target.to_string()))
+        || api_resource
+            .group
+            .as_ref()
+            .is_some_and(|group| format!("{}.{}", api_resource.name, group) == target)
 }
