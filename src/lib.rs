@@ -40,7 +40,7 @@ pub fn determine_namespace(namespace: Option<String>, context: &str) -> String {
         return ns;
     }
 
-    let default_namespace = match Kubeconfig::read() {
+    match Kubeconfig::read() {
         Ok(kubeconfig) => kubeconfig
             .contexts
             .iter()
@@ -53,7 +53,5 @@ pub fn determine_namespace(namespace: Option<String>, context: &str) -> String {
             })
             .unwrap_or_else(|| String::from("default")),
         Err(_) => String::from("default"),
-    };
-
-    default_namespace
+    }
 }
