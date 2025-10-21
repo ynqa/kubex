@@ -2,12 +2,7 @@ use std::ffi::OsStr;
 
 use clap::{Arg, ValueHint, builder::StyledStr};
 use clap_complete::engine::{ArgValueCompleter, CompletionCandidate};
-
-pub use clap_complete::env::CompleteEnv;
 use kube::config::Kubeconfig;
-
-/// Re-export dynamic completion helpers for consumer crates.
-pub use clap_complete::engine;
 
 /// Build a `--context` argument with dynamic kubeconfig-aware completions.
 pub fn context_arg() -> Arg {
