@@ -1,6 +1,6 @@
 use std::ffi::OsStr;
 
-use clap::{Arg, ValueHint, builder::StyledStr};
+use clap::{Arg, ValueHint};
 use clap_complete::engine::{ArgValueCompleter, CompletionCandidate};
 use kube::config::Kubeconfig;
 
@@ -16,55 +16,26 @@ pub fn context_arg() -> Arg {
 
 /// Create an `ArgValueCompleter` that lists contexts from the active kubeconfig.
 pub fn context_value_completer() -> ArgValueCompleter {
-    ArgValueCompleter::new(|current: &OsStr| -> Vec<CompletionCandidate> {
+    ArgValueCompleter::new(|input: &OsStr| -> Vec<CompletionCandidate> {
         let kubeconfig = match Kubeconfig::read() {
             Ok(config) => config,
             Err(_) => return Vec::new(),
         };
 
         let current_context = kubeconfig.current_context.clone();
-        let prefix_owned = current.to_string_lossy();
-        let prefix = prefix_owned.trim();
 
-        let mut completions = Vec::new();
+        // Convert OsStr to &str with trimmed whitespace
+        let input = input.to_string_lossy();
+        let input = input.trim();
 
-        for named_context in kubeconfig.contexts.into_iter() {
-            let context_name = named_context.name;
-
-            if !prefix.is_empty() && !context_name.starts_with(prefix) {
-                continue;
-            }
-
-            let mut candidate = CompletionCandidate::new(context_name.clone());
-            let is_current = current_context
-                .as_ref()
-                .is_some_and(|ctx| ctx == &context_name);
-
-            let mut details = Vec::new();
-            if let Some(ctx) = named_context.context {
-                details.push(format!("cluster={}", ctx.cluster));
-                if let Some(namespace) = ctx.namespace {
-                    details.push(format!("namespace={namespace}"));
-                }
-            }
-
-            if is_current {
-                details.insert(0, String::from("[current]"));
-            }
-
-            if !details.is_empty() {
-                let info = details.join(" ");
-                candidate = candidate.help(Some(StyledStr::from(info)));
-            }
-
-            if is_current {
-                candidate = candidate.display_order(Some(0));
-                completions.insert(0, candidate);
-            } else {
-                completions.push(candidate);
-            }
-        }
-
-        completions
+        kubeconfig
+            .contexts
+            .iter()
+            .filter(|named_context| named_context.name.starts_with(input))
+            .map(|named_context| {
+                let context = named_context.name.clone();
+                CompletionCandidate::new(context)
+            })
+            .collect()
     })
 }
