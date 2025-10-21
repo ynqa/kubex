@@ -4,6 +4,7 @@
 pub use k8s_openapi;
 pub use kube;
 
+pub mod clap;
 pub mod discover;
 pub mod dynamic;
 
