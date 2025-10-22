@@ -2,16 +2,12 @@ use clap::{CommandFactory, Parser};
 use kubex;
 
 #[derive(Debug, Parser)]
-#[command(
-    name = "kubex",
-    about = "Showcase dynamic context completion support"
-)]
+#[command(name = "kubex", about = "Showcase dynamic context completion support")]
 struct Cli {
     #[arg(long, add = kubex::claputil::context_value_completer())]
     /// Please type the context name you want to target.
     context: Option<String>,
 
-    #[arg(long, add = kubex::claputil::namespace_value_completer())]
     /// Please type the namespace name you want to target.
     namespace: Option<String>,
 }
