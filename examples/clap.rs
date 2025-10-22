@@ -1,5 +1,5 @@
 use clap::{CommandFactory, Parser};
-use kubex::{self, determine_context};
+use kubex;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -10,13 +10,17 @@ struct Cli {
     #[arg(long, add = kubex::claputil::context_value_completer())]
     /// Please type the context name you want to target.
     context: Option<String>,
+
+    #[arg(long, add = kubex::claputil::namespace_value_completer())]
+    /// Please type the namespace name you want to target.
+    namespace: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {
     kubex::clap_complete::CompleteEnv::with_factory(Cli::command).complete();
 
     let cli = Cli::parse();
-    let context = determine_context(&cli.context)?;
-    println!("Using context: {context}");
+    println!("Using context: {}", &cli.context.unwrap());
+    println!("Using namespace: {}", &cli.namespace.unwrap());
     Ok(())
 }
