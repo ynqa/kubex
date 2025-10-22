@@ -3,7 +3,7 @@ use kubex;
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "kubex-clap",
+    name = "kubex",
     about = "Showcase dynamic context completion support"
 )]
 struct Cli {
