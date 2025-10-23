@@ -8,6 +8,7 @@ struct Cli {
     /// Please type the context name you want to target.
     context: Option<String>,
 
+    #[arg(long, add = kubex::claputil::namespace_value_completer())]
     /// Please type the namespace name you want to target.
     namespace: Option<String>,
 }
