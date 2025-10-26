@@ -7,6 +7,7 @@ pub use k8s_openapi;
 pub use kube;
 
 pub mod claputil;
+pub use claputil::{context_value_completer, namespace_value_completer};
 pub mod discover;
 pub mod dynamic;
 
