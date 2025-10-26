@@ -1,7 +1,6 @@
 #![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-pub use clap;
 pub use clap_complete;
 pub use k8s_openapi;
 pub use kube;
