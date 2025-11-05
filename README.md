@@ -12,7 +12,7 @@ Add the following dependency to your `Cargo.toml`.
 
 ```toml
 [dependencies]
-kubex = "0.1.0"
+kubex = "0.3.0"
 ```
 
 ## Example
