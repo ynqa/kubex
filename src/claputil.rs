@@ -3,6 +3,7 @@ use std::ffi::OsStr;
 use clap_complete::engine::{ArgValueCompleter, CompletionCandidate};
 use k8s_openapi::api::core::v1::Namespace;
 use kube::{Config, config::Kubeconfig};
+use tokio::{runtime::Handle, task};
 
 /// Create an `ArgValueCompleter` that lists contexts from the active kubeconfig.
 pub fn context_value_completer() -> ArgValueCompleter {
@@ -48,16 +49,10 @@ pub fn namespace_value_completer() -> ArgValueCompleter {
             ..Default::default()
         };
 
-        // Create a tokio runtime to execute async code in a sync context
-        let rt = match tokio::runtime::Runtime::new() {
-            Ok(rt) => rt,
-            Err(_) => return Vec::new(),
-        };
-
         let input_str = input.to_string_lossy();
         let input_str = input_str.trim();
 
-        rt.block_on(async {
+        let namespaces_future = async {
             let config = match Config::from_custom_kubeconfig(kubeconfig, &options).await {
                 Ok(cfg) => cfg,
                 Err(_) => return Vec::new(),
@@ -82,6 +77,16 @@ pub fn namespace_value_completer() -> ArgValueCompleter {
                 .filter(|name| name.starts_with(input_str))
                 .map(|name| CompletionCandidate::new(name.clone()))
                 .collect()
-        })
+        };
+
+        // If called on an existing Tokio runtime, `Runtime::block_on` will panic.
+        // Therefore, if a runtime exists, we use `block_in_place` to escape to a blocking thread,
+        // and from there we call `block_on` with the current handle.
+        match Handle::try_current() {
+            Ok(handle) => task::block_in_place(move || handle.block_on(namespaces_future)),
+            Err(_) => tokio::runtime::Runtime::new()
+                .map(|rt| rt.block_on(namespaces_future))
+                .unwrap_or_default(),
+        }
     })
 }
