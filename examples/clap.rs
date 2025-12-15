@@ -17,7 +17,7 @@ fn main() -> anyhow::Result<()> {
     kubex::clap_complete::CompleteEnv::with_factory(Cli::command).complete();
 
     let cli = Cli::parse();
-    println!("Using context: {}", &cli.context.unwrap());
-    println!("Using namespace: {}", &cli.namespace.unwrap());
+    println!("Using context: {}", cli.context.as_deref().unwrap_or("not specified"));
+    println!("Using namespace: {}", cli.namespace.as_deref().unwrap_or("not specified"));
     Ok(())
 }
