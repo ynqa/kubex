@@ -75,7 +75,7 @@ pub fn namespace_value_completer() -> ArgValueCompleter {
                 .iter()
                 .filter_map(|ns| ns.metadata.name.as_ref())
                 .filter(|name| name.starts_with(input_str))
-                .map(|name| CompletionCandidate::new(name.clone()))
+                .map(CompletionCandidate::new)
                 .collect()
         };
 
