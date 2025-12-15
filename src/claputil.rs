@@ -14,13 +14,13 @@ pub fn context_value_completer() -> ArgValueCompleter {
         };
 
         // Convert OsStr to &str with trimmed whitespace
-        let input = input.to_string_lossy();
-        let input = input.trim();
+        let input_str = input.to_string_lossy();
+        let trimmed_input = input_str.trim();
 
         kubeconfig
             .contexts
             .iter()
-            .filter(|named_context| named_context.name.starts_with(input))
+            .filter(|named_context| named_context.name.starts_with(trimmed_input))
             .map(|named_context| {
                 let context = named_context.name.clone();
                 CompletionCandidate::new(context)
