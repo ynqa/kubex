@@ -27,6 +27,15 @@ pub fn context_value_completer() -> ArgValueCompleter {
 }
 
 /// Create an `ArgValueCompleter` that lists namespaces from the active kubeconfig.
+///
+/// This function makes a network call to the Kubernetes cluster to retrieve the list of namespaces.
+/// As a result, it may be slow or fail silently (returning an empty list) in case of network issues,
+/// authentication failures, or missing permissions.
+///
+/// When called within an existing Tokio runtime, it uses `block_in_place` to avoid panicking and
+/// blocks on the current runtime handle. If no runtime exists, it creates a new Tokio runtime to
+/// perform the network call.
+///
 /// Limitation: The context specified by --context is not considered.
 /// See https://github.com/clap-rs/clap/issues/1910 for more details.
 pub fn namespace_value_completer() -> ArgValueCompleter {
