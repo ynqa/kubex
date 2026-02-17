@@ -21,10 +21,7 @@ pub fn context_value_completer() -> ArgValueCompleter {
             .contexts
             .iter()
             .filter(|named_context| named_context.name.starts_with(input))
-            .map(|named_context| {
-                let context = named_context.name.clone();
-                CompletionCandidate::new(context)
-            })
+            .map(|named_context| CompletionCandidate::new(named_context.name.as_str()))
             .collect()
     })
 }
