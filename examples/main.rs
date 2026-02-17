@@ -1,5 +1,5 @@
 use kube::Client;
-use kubex::{determine_context, determine_namespace, discover::DiscoverClient};
+use kubex::{determine_context, determine_namespace, discover::client::DiscoverClient};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
