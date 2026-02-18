@@ -140,7 +140,7 @@ pub fn resource_value_completer(
             .filter(|candidate| candidate.starts_with(&current_token))
             .filter(|candidate| seen.insert(candidate.clone()))
             // Append a comma so selecting a candidate keeps typing on the next value.
-            .map(|candidate| CompletionCandidate::new(candidate))
+            .map(CompletionCandidate::new)
             .collect()
     })
 }

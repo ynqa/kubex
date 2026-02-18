@@ -15,15 +15,20 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use super::{RetryPolicy, retry_with_policy};
 
+type WatchRetryResult<K> = Result<WatchEvent<K>, KubeError>;
+type WatchRetryStream<'a, K> = LocalBoxStream<'a, WatchRetryResult<K>>;
+type WatchMetadataRetryResult<K> = Result<WatchEvent<PartialObjectMeta<K>>, KubeError>;
+type WatchMetadataRetryStream<'a, K> = LocalBoxStream<'a, WatchMetadataRetryResult<K>>;
+
 /// Retry extension methods for `Api<T>`.
 pub trait ApiRetryExt<K> {
-    fn retry<T, F>(
-        &self,
+    fn retry<'a, T: 'a, F>(
+        &'a self,
         policy: RetryPolicy,
         operation: F,
-    ) -> impl Future<Output = Result<T, KubeError>>
+    ) -> impl Future<Output = Result<T, KubeError>> + 'a
     where
-        F: for<'a> FnMut(&'a Api<K>) -> BoxFuture<'a, Result<T, KubeError>>;
+        F: for<'b> FnMut(&'b Api<K>) -> BoxFuture<'b, Result<T, KubeError>> + 'a;
 
     fn list_with_retry<'a>(
         &'a self,
@@ -146,7 +151,7 @@ pub trait ApiRetryExt<K> {
         policy: RetryPolicy,
         wp: &'a WatchParams,
         version: &'a str,
-    ) -> impl Future<Output = Result<LocalBoxStream<'a, Result<WatchEvent<K>, KubeError>>, KubeError>> + 'a
+    ) -> impl Future<Output = Result<WatchRetryStream<'a, K>, KubeError>> + 'a
     where
         K: Clone + DeserializeOwned + std::fmt::Debug;
 
@@ -155,29 +160,22 @@ pub trait ApiRetryExt<K> {
         policy: RetryPolicy,
         wp: &'a WatchParams,
         version: &'a str,
-    ) -> impl Future<
-        Output = Result<
-            LocalBoxStream<'a, Result<WatchEvent<PartialObjectMeta<K>>, KubeError>>,
-            KubeError,
-        >,
-    > + 'a
+    ) -> impl Future<Output = Result<WatchMetadataRetryStream<'a, K>, KubeError>> + 'a
     where
         K: Clone + DeserializeOwned + std::fmt::Debug;
 }
 
 impl<K> ApiRetryExt<K> for Api<K> {
-    fn retry<T, F>(
-        &self,
+    fn retry<'a, T: 'a, F>(
+        &'a self,
         policy: RetryPolicy,
         operation: F,
-    ) -> impl Future<Output = Result<T, KubeError>>
+    ) -> impl Future<Output = Result<T, KubeError>> + 'a
     where
-        F: for<'a> FnMut(&'a Api<K>) -> BoxFuture<'a, Result<T, KubeError>>,
+        F: for<'b> FnMut(&'b Api<K>) -> BoxFuture<'b, Result<T, KubeError>> + 'a,
     {
-        async move {
-            let mut operation = operation;
-            retry_with_policy(policy, || operation(self)).await
-        }
+        let mut operation = operation;
+        retry_with_policy(policy, move || operation(self))
     }
 
     fn list_with_retry<'a>(
@@ -188,7 +186,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
     where
         K: Clone + DeserializeOwned + std::fmt::Debug,
     {
-        async move { retry_with_policy(policy, || self.list(lp)).await }
+        retry_with_policy(policy, || self.list(lp))
     }
 
     fn list_metadata_with_retry<'a>(
@@ -199,7 +197,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
     where
         K: Clone + DeserializeOwned + std::fmt::Debug,
     {
-        async move { retry_with_policy(policy, || self.list_metadata(lp)).await }
+        retry_with_policy(policy, || self.list_metadata(lp))
     }
 
     fn get_with_retry<'a>(
@@ -210,7 +208,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
     where
         K: Clone + DeserializeOwned + std::fmt::Debug,
     {
-        async move { retry_with_policy(policy, || self.get(name)).await }
+        retry_with_policy(policy, || self.get(name))
     }
 
     fn get_with_params_retry<'a>(
@@ -222,7 +220,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
     where
         K: Clone + DeserializeOwned + std::fmt::Debug,
     {
-        async move { retry_with_policy(policy, || self.get_with(name, gp)).await }
+        retry_with_policy(policy, || self.get_with(name, gp))
     }
 
     fn get_opt_with_retry<'a>(
@@ -233,7 +231,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
     where
         K: Clone + DeserializeOwned + std::fmt::Debug,
     {
-        async move { retry_with_policy(policy, || self.get_opt(name)).await }
+        retry_with_policy(policy, || self.get_opt(name))
     }
 
     fn get_metadata_with_retry<'a>(
@@ -244,7 +242,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
     where
         K: Clone + DeserializeOwned + std::fmt::Debug,
     {
-        async move { retry_with_policy(policy, || self.get_metadata(name)).await }
+        retry_with_policy(policy, || self.get_metadata(name))
     }
 
     fn get_metadata_with_params_retry<'a>(
@@ -256,7 +254,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
     where
         K: Clone + DeserializeOwned + std::fmt::Debug,
     {
-        async move { retry_with_policy(policy, || self.get_metadata_with(name, gp)).await }
+        retry_with_policy(policy, || self.get_metadata_with(name, gp))
     }
 
     fn get_metadata_opt_with_retry<'a>(
@@ -267,7 +265,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
     where
         K: Clone + DeserializeOwned + std::fmt::Debug,
     {
-        async move { retry_with_policy(policy, || self.get_metadata_opt(name)).await }
+        retry_with_policy(policy, || self.get_metadata_opt(name))
     }
 
     fn get_metadata_opt_with_params_retry<'a>(
@@ -279,7 +277,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
     where
         K: Clone + DeserializeOwned + std::fmt::Debug,
     {
-        async move { retry_with_policy(policy, || self.get_metadata_opt_with(name, gp)).await }
+        retry_with_policy(policy, || self.get_metadata_opt_with(name, gp))
     }
 
     fn create_with_retry<'a>(
@@ -291,7 +289,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
     where
         K: Clone + DeserializeOwned + std::fmt::Debug + Serialize,
     {
-        async move { retry_with_policy(policy, || self.create(pp, data)).await }
+        retry_with_policy(policy, || self.create(pp, data))
     }
 
     fn patch_with_retry<'a, P>(
@@ -305,7 +303,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
         K: Clone + DeserializeOwned + std::fmt::Debug,
         P: Serialize + std::fmt::Debug,
     {
-        async move { retry_with_policy(policy, || self.patch(name, pp, patch)).await }
+        retry_with_policy(policy, || self.patch(name, pp, patch))
     }
 
     fn patch_metadata_with_retry<'a, P>(
@@ -319,7 +317,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
         K: Clone + DeserializeOwned + std::fmt::Debug,
         P: Serialize + std::fmt::Debug,
     {
-        async move { retry_with_policy(policy, || self.patch_metadata(name, pp, patch)).await }
+        retry_with_policy(policy, || self.patch_metadata(name, pp, patch))
     }
 
     fn replace_with_retry<'a>(
@@ -332,7 +330,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
     where
         K: Clone + DeserializeOwned + std::fmt::Debug + Serialize,
     {
-        async move { retry_with_policy(policy, || self.replace(name, pp, data)).await }
+        retry_with_policy(policy, || self.replace(name, pp, data))
     }
 
     fn watch_with_retry<'a>(
@@ -340,17 +338,14 @@ impl<K> ApiRetryExt<K> for Api<K> {
         policy: RetryPolicy,
         wp: &'a WatchParams,
         version: &'a str,
-    ) -> impl Future<Output = Result<LocalBoxStream<'a, Result<WatchEvent<K>, KubeError>>, KubeError>> + 'a
+    ) -> impl Future<Output = Result<WatchRetryStream<'a, K>, KubeError>> + 'a
     where
         K: Clone + DeserializeOwned + std::fmt::Debug,
     {
-        async move {
-            retry_with_policy(policy, || async {
-                let stream = self.watch(wp, version).await?;
-                Ok::<_, KubeError>(stream.boxed_local())
-            })
-            .await
-        }
+        retry_with_policy(policy, || async {
+            let stream = self.watch(wp, version).await?;
+            Ok::<_, KubeError>(stream.boxed_local())
+        })
     }
 
     fn watch_metadata_with_retry<'a>(
@@ -358,21 +353,13 @@ impl<K> ApiRetryExt<K> for Api<K> {
         policy: RetryPolicy,
         wp: &'a WatchParams,
         version: &'a str,
-    ) -> impl Future<
-        Output = Result<
-            LocalBoxStream<'a, Result<WatchEvent<PartialObjectMeta<K>>, KubeError>>,
-            KubeError,
-        >,
-    > + 'a
+    ) -> impl Future<Output = Result<WatchMetadataRetryStream<'a, K>, KubeError>> + 'a
     where
         K: Clone + DeserializeOwned + std::fmt::Debug,
     {
-        async move {
-            retry_with_policy(policy, || async {
-                let stream = self.watch_metadata(wp, version).await?;
-                Ok::<_, KubeError>(stream.boxed_local())
-            })
-            .await
-        }
+        retry_with_policy(policy, || async {
+            let stream = self.watch_metadata(wp, version).await?;
+            Ok::<_, KubeError>(stream.boxed_local())
+        })
     }
 }

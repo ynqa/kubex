@@ -2,8 +2,7 @@ use std::path::{Path, PathBuf};
 
 use clap::{CommandFactory, Parser};
 use kube::Client;
-use kubex;
-use kubex::discover::{client::DiscoverClient, save_discovery_cache};
+use kubex::discover::{self, client::DiscoverClient};
 
 const CACHE_PATH: &str = ".kubex-discovery-cache.json";
 
@@ -58,7 +57,7 @@ async fn main() -> anyhow::Result<()> {
         let resources = DiscoverClient::new(client.clone())
             .list_api_resources()
             .await?;
-        save_discovery_cache(Path::new(CACHE_PATH), &resources)?;
+        discover::save_discovery_cache(Path::new(CACHE_PATH), &resources)?;
     }
     Ok(())
 }
