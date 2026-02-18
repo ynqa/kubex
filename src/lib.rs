@@ -99,8 +99,8 @@ pub enum ResourceTargetSpec {
     AnyOf(Vec<String>),
 }
 
-/// Resolve target resources against the list of discovered API resources.
-pub fn resolve_all_targets(
+/// Resolve requested resources against the list of discovered API resources.
+pub fn resolve_requested_resources(
     spec: &ResourceTargetSpec,
     resources: &[APIResource],
 ) -> anyhow::Result<Vec<APIResource>> {
@@ -161,7 +161,7 @@ pub fn resolve_all_targets(
 /// This function never performs live discovery against the Kubernetes cluster.
 /// It returns an error when `cache_path` is not provided, the cache cannot be loaded,
 /// or the cache is expired based on `cache_ttl`.
-pub fn resolve_requested_resources_with_cache(
+pub fn resolve_requested_resources_from_cache(
     spec: &ResourceTargetSpec,
     cache_path: &Path,
     cache_ttl: Option<Duration>,
@@ -178,5 +178,5 @@ pub fn resolve_requested_resources_with_cache(
         }
     }
 
-    crate::resolve_all_targets(spec, &cache.resources)
+    crate::resolve_requested_resources(spec, &cache.resources)
 }
