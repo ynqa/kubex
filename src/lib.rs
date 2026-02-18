@@ -1,12 +1,14 @@
 #![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+use std::collections::HashSet;
+
 pub use clap_complete;
 pub use k8s_openapi;
 pub use kube;
 
 pub mod claputil;
-pub use claputil::{context_value_completer, namespace_value_completer};
+pub use claputil::{context_value_completer, namespace_value_completer, resource_value_completer};
 pub mod discover;
 pub mod dynamic;
 
@@ -60,17 +62,17 @@ pub fn determine_namespace(namespace: Option<String>, context: &str) -> String {
     }
 }
 
-/// Finds and returns the `APIResource` that matches the given `resource` name from the list of `api_resources`.
-pub fn find_resource(target: &str, api_resources: &[APIResource]) -> Option<APIResource> {
+/// Resolve the requested target resource name from the list of discovered API resources.
+pub fn resolve_target(target: &str, api_resources: &[APIResource]) -> Option<APIResource> {
     api_resources
         .iter()
-        .find(|api_resource| match_resource(target, api_resource))
+        .find(|api_resource| resource_matches_target(target, api_resource))
         .cloned()
 }
 
 /// Checks if the given `api_resource` matches the `target` resource name.
 /// Matching is done against the resource's name, singular name, short names, and group-qualified name.
-pub fn match_resource(target: &str, api_resource: &APIResource) -> bool {
+pub fn resource_matches_target(target: &str, api_resource: &APIResource) -> bool {
     api_resource.name == target
         || api_resource.singular_name == target
         || api_resource
@@ -83,28 +85,70 @@ pub fn match_resource(target: &str, api_resource: &APIResource) -> bool {
             .is_some_and(|group| format!("{}.{}", api_resource.name, group) == target)
 }
 
-/// Match the requested target resource names against the list of discovered API resources.
-pub fn match_all_targets(
-    targets: &[String],
+/// Target specification for resource resolution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResourceTargetSpec {
+    /// Resolve all discovered resources.
+    AllResources,
+    /// All specified targets must be resolved.
+    AllOf(Vec<String>),
+    /// At least one specified target must be resolved.
+    AnyOf(Vec<String>),
+}
+
+/// Resolve target resources against the list of discovered API resources.
+pub fn resolve_all_targets(
+    spec: &ResourceTargetSpec,
     resources: &[APIResource],
 ) -> anyhow::Result<Vec<APIResource>> {
-    let mut matched = Vec::new();
-    let mut unmatched = Vec::new();
+    match spec {
+        ResourceTargetSpec::AllResources => Ok(resources.to_vec()),
+        ResourceTargetSpec::AllOf(targets) => {
+            let mut matched = Vec::new();
+            let mut unmatched = Vec::new();
 
-    for target in targets {
-        if let Some(api_resource) = find_resource(target, resources) {
-            matched.push(api_resource);
-        } else {
-            unmatched.push(target.clone());
+            for target in targets {
+                if let Some(api_resource) = resolve_target(target, resources) {
+                    matched.push(api_resource);
+                } else {
+                    unmatched.push(target.clone());
+                }
+            }
+
+            if unmatched.is_empty() {
+                Ok(matched)
+            } else {
+                Err(anyhow::anyhow!(
+                    "the following requested resources could not be resolved: {}",
+                    unmatched.join(", ")
+                ))
+            }
         }
-    }
+        ResourceTargetSpec::AnyOf(targets) => {
+            let mut seen = HashSet::new();
+            let mut matched = Vec::new();
+            for target in targets {
+                if let Some(api_resource) = resolve_target(target, resources) {
+                    let key = format!(
+                        "{}|{}|{}",
+                        api_resource.name,
+                        api_resource.group.clone().unwrap_or_default(),
+                        api_resource.version.clone().unwrap_or_default()
+                    );
+                    if seen.insert(key) {
+                        matched.push(api_resource);
+                    }
+                }
+            }
 
-    if unmatched.is_empty() {
-        Ok(matched)
-    } else {
-        Err(anyhow::anyhow!(
-            "the following requested resources could not be resolved: {}",
-            unmatched.join(", ")
-        ))
+            if matched.is_empty() {
+                Err(anyhow::anyhow!(
+                    "none of the requested resources could be resolved: {}",
+                    targets.join(", ")
+                ))
+            } else {
+                Ok(matched)
+            }
+        }
     }
 }

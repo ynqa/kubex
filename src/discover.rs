@@ -5,11 +5,11 @@ use k8s_openapi::{
     apimachinery::pkg::apis::meta::v1::APIResource,
     chrono::{DateTime, TimeDelta, Utc},
 };
-use kube::Client;
 use serde::{Deserialize, Serialize};
 
+use crate::ResourceTargetSpec;
+
 pub mod client;
-use client::DiscoverClient;
 
 /// Represent the discovery cache file format,
 /// which includes the timestamp of when the API resources were fetched
@@ -48,58 +48,27 @@ pub fn save_discovery_cache(path: &Path, resources: &[APIResource]) -> anyhow::R
     Ok(())
 }
 
-/// Resolve the requested API resources by first attempting to load from cache (if provided and valid),
-/// and if that fails, performing a live discovery against the Kubernetes cluster.
-pub async fn resolve_requested_resources(
-    client: &Client,
-    targets: &[String],
-    cache_path: Option<&Path>,
+/// Resolve requested API resources from discovery cache only.
+///
+/// This function never performs live discovery against the Kubernetes cluster.
+/// It returns an error when `cache_path` is not provided, the cache cannot be loaded,
+/// or the cache is expired based on `cache_ttl`.
+pub fn resolve_requested_resources_with_cache(
+    spec: &ResourceTargetSpec,
+    cache_path: &Path,
     cache_ttl: Option<Duration>,
 ) -> anyhow::Result<Vec<APIResource>> {
-    if targets.is_empty() {
-        return Ok(Vec::new());
-    }
+    let cache = load_discovery_cache(cache_path)?;
 
-    let loaded_cache = cache_path
-        .map(|path| load_discovery_cache(path))
-        .transpose()?;
-
-    if let Some(cache) = loaded_cache.as_ref() {
-        match cache_ttl {
-            Some(ttl) => {
-                let cache_age = Utc::now() - cache.updated_at;
-                let ttl = TimeDelta::from_std(ttl).unwrap_or(TimeDelta::MAX);
-                if cache_age <= ttl {
-                    if let Ok(matched) = crate::match_all_targets(targets, &cache.resources) {
-                        return Ok(matched);
-                    }
-                }
-            }
-            None => {
-                if let Ok(matched) = crate::match_all_targets(targets, &cache.resources) {
-                    return Ok(matched);
-                }
-            }
+    if let Some(ttl) = cache_ttl {
+        let cache_age = Utc::now() - cache.updated_at;
+        let ttl = TimeDelta::from_std(ttl).unwrap_or(TimeDelta::MAX);
+        if cache_age > ttl {
+            return Err(anyhow::anyhow!(
+                "discovery cache expired at {cache_path:?} (age: {cache_age:?}, ttl: {ttl:?})"
+            ));
         }
     }
 
-    match DiscoverClient::new(client.clone())
-        .list_api_resources()
-        .await
-    {
-        Ok(resources) => {
-            if let Some(path) = cache_path {
-                let _ = save_discovery_cache(path, &resources);
-            }
-            crate::match_all_targets(targets, &resources)
-        }
-        Err(err) => {
-            if let Some(cache) = loaded_cache {
-                if let Ok(matched) = crate::match_all_targets(targets, &cache.resources) {
-                    return Ok(matched);
-                }
-            }
-            Err(err).context("failed to discover Kubernetes API resources")
-        }
-    }
+    crate::resolve_all_targets(spec, &cache.resources)
 }
