@@ -20,7 +20,7 @@ struct Cli {
 
     #[arg(
         add = kubex::resource_value_completer(
-            PathBuf::from(CACHE_PATH),
+            Some(PathBuf::from(CACHE_PATH)),
             None,
         ),
     )]

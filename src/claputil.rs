@@ -103,19 +103,23 @@ pub fn namespace_value_completer() -> ArgValueCompleter {
 ///
 /// Completion candidates are generated from `singular_name` only.
 /// This completer works with comma-delimited values and completes the current token.
-/// `cache_path` and `cache_ttl` are forwarded to
-/// `resolve_requested_resources_from_cache`.
+/// When `cache_path` is `Some`, `cache_path` and `cache_ttl` are forwarded to
+/// `resolve_requested_resources_from_cache`; when `None`, it returns no candidates.
 /// Cache is the only source; no live API discovery is performed here.
 pub fn resource_value_completer(
-    cache_path: PathBuf,
+    cache_path: Option<PathBuf>,
     cache_ttl: Option<Duration>,
 ) -> ArgValueCompleter {
     ArgValueCompleter::new(move |input: &OsStr| -> Vec<CompletionCandidate> {
+        let Some(cache_path) = cache_path.as_ref() else {
+            return Vec::new();
+        };
+
         let current_token = input.to_string_lossy().trim().to_string();
 
         let resources = match crate::resolve_requested_resources_from_cache(
             &ResourceTargetSpec::AllResources,
-            cache_path.as_ref(),
+            cache_path.as_path(),
             cache_ttl,
         ) {
             Ok(resources) => resources,

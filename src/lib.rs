@@ -10,6 +10,7 @@ pub use kube;
 pub mod claputil;
 pub use claputil::{context_value_completer, namespace_value_completer, resource_value_completer};
 pub mod discover;
+pub use discover::{load_discovery_cache, save_discovery_cache};
 pub mod dynamic;
 
 use k8s_openapi::{
