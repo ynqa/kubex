@@ -12,6 +12,8 @@ pub use claputil::{context_value_completer, namespace_value_completer, resource_
 pub mod discover;
 pub use discover::{load_discovery_cache, save_discovery_cache};
 pub mod dynamic;
+pub mod retry;
+pub use retry::{ApiRetryExt, RetryPolicy, default_retryable_error, retry_with_policy};
 
 use k8s_openapi::{
     apimachinery::pkg::apis::meta::v1::APIResource,
