@@ -1,13 +1,11 @@
-use std::{fs, path::Path, time::Duration};
+use std::{fs, path::Path};
 
 use anyhow::Context;
 use k8s_openapi::{
     apimachinery::pkg::apis::meta::v1::APIResource,
-    chrono::{DateTime, TimeDelta, Utc},
+    chrono::{DateTime, Utc},
 };
 use serde::{Deserialize, Serialize};
-
-use crate::ResourceTargetSpec;
 
 pub mod client;
 
@@ -17,9 +15,9 @@ pub mod client;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiscoveryCacheFile {
     /// The timestamp when the API resources were saved to the cache.
-    updated_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     /// The list of API resources discovered from the Kubernetes cluster.
-    resources: Vec<APIResource>,
+    pub resources: Vec<APIResource>,
 }
 
 /// Load the discovery cache from a file at the specified path.
@@ -46,29 +44,4 @@ pub fn save_discovery_cache(path: &Path, resources: &[APIResource]) -> anyhow::R
     fs::write(path, cache_data)
         .with_context(|| format!("Failed to write discovery cache to {:?}", path))?;
     Ok(())
-}
-
-/// Resolve requested API resources from discovery cache only.
-///
-/// This function never performs live discovery against the Kubernetes cluster.
-/// It returns an error when `cache_path` is not provided, the cache cannot be loaded,
-/// or the cache is expired based on `cache_ttl`.
-pub fn resolve_requested_resources_with_cache(
-    spec: &ResourceTargetSpec,
-    cache_path: &Path,
-    cache_ttl: Option<Duration>,
-) -> anyhow::Result<Vec<APIResource>> {
-    let cache = load_discovery_cache(cache_path)?;
-
-    if let Some(ttl) = cache_ttl {
-        let cache_age = Utc::now() - cache.updated_at;
-        let ttl = TimeDelta::from_std(ttl).unwrap_or(TimeDelta::MAX);
-        if cache_age > ttl {
-            return Err(anyhow::anyhow!(
-                "discovery cache expired at {cache_path:?} (age: {cache_age:?}, ttl: {ttl:?})"
-            ));
-        }
-    }
-
-    crate::resolve_all_targets(spec, &cache.resources)
 }

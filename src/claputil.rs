@@ -113,7 +113,7 @@ pub fn resource_value_completer(
     ArgValueCompleter::new(move |input: &OsStr| -> Vec<CompletionCandidate> {
         let current_token = input.to_string_lossy().trim().to_string();
 
-        let resources = match crate::discover::resolve_requested_resources_with_cache(
+        let resources = match crate::resolve_requested_resources_with_cache(
             &ResourceTargetSpec::AllResources,
             cache_path.as_ref(),
             cache_ttl,

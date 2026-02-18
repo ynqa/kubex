@@ -1,7 +1,7 @@
 #![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-use std::collections::HashSet;
+use std::{collections::HashSet, path::Path, time::Duration};
 
 pub use clap_complete;
 pub use k8s_openapi;
@@ -12,7 +12,10 @@ pub use claputil::{context_value_completer, namespace_value_completer, resource_
 pub mod discover;
 pub mod dynamic;
 
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::APIResource;
+use k8s_openapi::{
+    apimachinery::pkg::apis::meta::v1::APIResource,
+    chrono::{TimeDelta, Utc},
+};
 use kube::config::Kubeconfig;
 
 /// Detects the Kubernetes context based on the provided `context` argument.
@@ -151,4 +154,29 @@ pub fn resolve_all_targets(
             }
         }
     }
+}
+
+/// Resolve requested API resources from discovery cache only.
+///
+/// This function never performs live discovery against the Kubernetes cluster.
+/// It returns an error when `cache_path` is not provided, the cache cannot be loaded,
+/// or the cache is expired based on `cache_ttl`.
+pub fn resolve_requested_resources_with_cache(
+    spec: &ResourceTargetSpec,
+    cache_path: &Path,
+    cache_ttl: Option<Duration>,
+) -> anyhow::Result<Vec<APIResource>> {
+    let cache = discover::load_discovery_cache(cache_path)?;
+
+    if let Some(ttl) = cache_ttl {
+        let cache_age = Utc::now() - cache.updated_at;
+        let ttl = TimeDelta::from_std(ttl).unwrap_or(TimeDelta::MAX);
+        if cache_age > ttl {
+            return Err(anyhow::anyhow!(
+                "discovery cache expired at {cache_path:?} (age: {cache_age:?}, ttl: {ttl:?})"
+            ));
+        }
+    }
+
+    crate::resolve_all_targets(spec, &cache.resources)
 }
