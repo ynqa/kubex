@@ -82,3 +82,29 @@ pub fn match_resource(target: &str, api_resource: &APIResource) -> bool {
             .as_ref()
             .is_some_and(|group| format!("{}.{}", api_resource.name, group) == target)
 }
+
+/// Match the requested target resource names against the list of discovered API resources.
+pub fn match_all_targets(
+    targets: &[String],
+    resources: &[APIResource],
+) -> anyhow::Result<Vec<APIResource>> {
+    let mut matched = Vec::new();
+    let mut unmatched = Vec::new();
+
+    for target in targets {
+        if let Some(api_resource) = find_resource(target, resources) {
+            matched.push(api_resource);
+        } else {
+            unmatched.push(target.clone());
+        }
+    }
+
+    if unmatched.is_empty() {
+        Ok(matched)
+    } else {
+        Err(anyhow::anyhow!(
+            "the following requested resources could not be resolved: {}",
+            unmatched.join(", ")
+        ))
+    }
+}

@@ -1,15 +1,9 @@
-use std::{
-    any,
-    collections::HashMap,
-    fs,
-    path::{Path, PathBuf},
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::{fs, path::Path, time::Duration};
 
 use anyhow::Context;
 use k8s_openapi::{
     apimachinery::pkg::apis::meta::v1::APIResource,
-    chrono::{DateTime, Utc},
+    chrono::{DateTime, TimeDelta, Utc},
 };
 use kube::Client;
 use serde::{Deserialize, Serialize};
@@ -74,14 +68,15 @@ pub async fn resolve_requested_resources(
         match cache_ttl {
             Some(ttl) => {
                 let cache_age = Utc::now() - cache.updated_at;
+                let ttl = TimeDelta::from_std(ttl).unwrap_or(TimeDelta::MAX);
                 if cache_age <= ttl {
-                    if let Ok(matched) = match_all_targets(targets, &cache.resources) {
+                    if let Ok(matched) = crate::match_all_targets(targets, &cache.resources) {
                         return Ok(matched);
                     }
                 }
             }
             None => {
-                if let Ok(matched) = match_all_targets(targets, &cache.resources) {
+                if let Ok(matched) = crate::match_all_targets(targets, &cache.resources) {
                     return Ok(matched);
                 }
             }
@@ -96,41 +91,15 @@ pub async fn resolve_requested_resources(
             if let Some(path) = cache_path {
                 let _ = save_discovery_cache(path, &resources);
             }
-            match_all_targets(targets, &resources)
+            crate::match_all_targets(targets, &resources)
         }
         Err(err) => {
             if let Some(cache) = loaded_cache {
-                if let Ok(matched) = match_all_targets(targets, &cache.resources) {
+                if let Ok(matched) = crate::match_all_targets(targets, &cache.resources) {
                     return Ok(matched);
                 }
             }
             Err(err).context("failed to discover Kubernetes API resources")
         }
     }
-}
-
-/// Match the requested target resource names against the list of discovered API resources.
-fn match_all_targets(
-    targets: &[String],
-    resources: &[APIResource],
-) -> anyhow::Result<Vec<APIResource>> {
-    let mut matched = HashMap::new();
-    let mut unresolved = Vec::new();
-
-    for target in targets {
-        if let Some(api_resource) = resources.iter().find(|res| res.name == *target) {
-            matched.insert(target.clone(), api_resource.clone());
-        } else {
-            unresolved.push(target.clone());
-        }
-    }
-
-    if !unresolved.is_empty() {
-        anyhow::bail!(
-            "Failed to resolve the following API resources: {:?}",
-            unresolved
-        );
-    }
-
-    Ok(matched.into_values().collect())
 }
