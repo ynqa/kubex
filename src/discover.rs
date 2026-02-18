@@ -1,9 +1,16 @@
 use std::{
-    any, collections::HashMap, fs, path::{Path, PathBuf}, time::{Duration, SystemTime, UNIX_EPOCH}
+    any,
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use anyhow::Context;
-use k8s_openapi::{apimachinery::pkg::apis::meta::v1::APIResource, chrono::{DateTime, Utc}};
+use k8s_openapi::{
+    apimachinery::pkg::apis::meta::v1::APIResource,
+    chrono::{DateTime, Utc},
+};
 use kube::Client;
 use serde::{Deserialize, Serialize};
 
@@ -45,4 +52,85 @@ pub fn save_discovery_cache(path: &Path, resources: &[APIResource]) -> anyhow::R
     fs::write(path, cache_data)
         .with_context(|| format!("Failed to write discovery cache to {:?}", path))?;
     Ok(())
+}
+
+/// Resolve the requested API resources by first attempting to load from cache (if provided and valid),
+/// and if that fails, performing a live discovery against the Kubernetes cluster.
+pub async fn resolve_requested_resources(
+    client: &Client,
+    targets: &[String],
+    cache_path: Option<&Path>,
+    cache_ttl: Option<Duration>,
+) -> anyhow::Result<Vec<APIResource>> {
+    if targets.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let loaded_cache = cache_path
+        .map(|path| load_discovery_cache(path))
+        .transpose()?;
+
+    if let Some(cache) = loaded_cache.as_ref() {
+        match cache_ttl {
+            Some(ttl) => {
+                let cache_age = Utc::now() - cache.updated_at;
+                if cache_age <= ttl {
+                    if let Ok(matched) = match_all_targets(targets, &cache.resources) {
+                        return Ok(matched);
+                    }
+                }
+            }
+            None => {
+                if let Ok(matched) = match_all_targets(targets, &cache.resources) {
+                    return Ok(matched);
+                }
+            }
+        }
+    }
+
+    match DiscoverClient::new(client.clone())
+        .list_api_resources()
+        .await
+    {
+        Ok(resources) => {
+            if let Some(path) = cache_path {
+                let _ = save_discovery_cache(path, &resources);
+            }
+            match_all_targets(targets, &resources)
+        }
+        Err(err) => {
+            if let Some(cache) = loaded_cache {
+                if let Ok(matched) = match_all_targets(targets, &cache.resources) {
+                    return Ok(matched);
+                }
+            }
+            Err(err).context("failed to discover Kubernetes API resources")
+        }
+    }
+}
+
+/// Match the requested target resource names against the list of discovered API resources.
+fn match_all_targets(
+    targets: &[String],
+    resources: &[APIResource],
+) -> anyhow::Result<Vec<APIResource>> {
+    let mut matched = HashMap::new();
+    let mut unresolved = Vec::new();
+
+    for target in targets {
+        if let Some(api_resource) = resources.iter().find(|res| res.name == *target) {
+            matched.insert(target.clone(), api_resource.clone());
+        } else {
+            unresolved.push(target.clone());
+        }
+    }
+
+    if !unresolved.is_empty() {
+        anyhow::bail!(
+            "Failed to resolve the following API resources: {:?}",
+            unresolved
+        );
+    }
+
+    Ok(matched.into_values().collect())
 }
