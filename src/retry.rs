@@ -109,17 +109,16 @@ where
 mod tests {
     use std::time::Duration;
 
-    use kube::{Error as KubeError, error::ErrorResponse};
+    use kube::{Error as KubeError, core::Status};
 
     use super::{RetryPolicy, default_retryable_error, retry_with_policy};
 
     fn api_error(code: u16) -> KubeError {
-        KubeError::Api(ErrorResponse {
-            status: "Failure".to_string(),
-            message: format!("status={code}"),
-            reason: "Test".to_string(),
-            code,
-        })
+        KubeError::Api(
+            Status::failure(&format!("status={code}"), "Test")
+                .with_code(code)
+                .boxed(),
+        )
     }
 
     #[tokio::test]

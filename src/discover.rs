@@ -1,10 +1,7 @@
 use std::{fs, path::Path};
 
 use anyhow::Context;
-use k8s_openapi::{
-    apimachinery::pkg::apis::meta::v1::APIResource,
-    chrono::{DateTime, Utc},
-};
+use k8s_openapi::{apimachinery::pkg::apis::meta::v1::APIResource, jiff::Timestamp};
 use serde::{Deserialize, Serialize};
 
 pub mod client;
@@ -15,7 +12,7 @@ pub mod client;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiscoveryCacheFile {
     /// The timestamp when the API resources were saved to the cache.
-    pub updated_at: DateTime<Utc>,
+    pub updated_at: Timestamp,
     /// The list of API resources discovered from the Kubernetes cluster.
     pub resources: Vec<APIResource>,
 }
@@ -34,7 +31,7 @@ pub fn save_discovery_cache(path: &Path, resources: &[APIResource]) -> anyhow::R
     }
 
     let cache_file = DiscoveryCacheFile {
-        updated_at: Utc::now(),
+        updated_at: Timestamp::now(),
         resources: resources.to_vec(),
     };
 

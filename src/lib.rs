@@ -17,7 +17,7 @@ pub use retry::{ApiRetryExt, RetryPolicy, default_retryable_error, retry_with_po
 
 use k8s_openapi::{
     apimachinery::pkg::apis::meta::v1::APIResource,
-    chrono::{TimeDelta, Utc},
+    jiff::{SignedDuration, Timestamp},
 };
 use kube::config::Kubeconfig;
 
@@ -172,8 +172,8 @@ pub fn resolve_requested_resources_from_cache(
     let cache = discover::load_discovery_cache(cache_path)?;
 
     if let Some(ttl) = cache_ttl {
-        let cache_age = Utc::now() - cache.updated_at;
-        let ttl = TimeDelta::from_std(ttl).unwrap_or(TimeDelta::MAX);
+        let cache_age = Timestamp::now().as_duration() - cache.updated_at.as_duration();
+        let ttl = SignedDuration::try_from(ttl).unwrap_or(SignedDuration::MAX);
         if cache_age > ttl {
             return Err(anyhow::anyhow!(
                 "discovery cache expired at {cache_path:?} (age: {cache_age:?}, ttl: {ttl:?})"
