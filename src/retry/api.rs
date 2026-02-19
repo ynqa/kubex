@@ -24,7 +24,7 @@ type WatchMetadataRetryStream<'a, K> = BoxStream<'a, WatchMetadataRetryResult<K>
 pub trait ApiRetryExt<K> {
     fn retry<'a, T: 'a, F>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         operation: F,
     ) -> impl Future<Output = Result<T, KubeError>> + 'a
     where
@@ -32,7 +32,7 @@ pub trait ApiRetryExt<K> {
 
     fn list_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         lp: &'a ListParams,
     ) -> impl Future<Output = Result<ObjectList<K>, KubeError>> + 'a
     where
@@ -40,7 +40,7 @@ pub trait ApiRetryExt<K> {
 
     fn list_metadata_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         lp: &'a ListParams,
     ) -> impl Future<Output = Result<ObjectList<PartialObjectMeta<K>>, KubeError>> + 'a
     where
@@ -48,7 +48,7 @@ pub trait ApiRetryExt<K> {
 
     fn get_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
     ) -> impl Future<Output = Result<K, KubeError>> + 'a
     where
@@ -56,7 +56,7 @@ pub trait ApiRetryExt<K> {
 
     fn get_with_params_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
         gp: &'a GetParams,
     ) -> impl Future<Output = Result<K, KubeError>> + 'a
@@ -65,7 +65,7 @@ pub trait ApiRetryExt<K> {
 
     fn get_opt_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
     ) -> impl Future<Output = Result<Option<K>, KubeError>> + 'a
     where
@@ -73,7 +73,7 @@ pub trait ApiRetryExt<K> {
 
     fn get_metadata_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
     ) -> impl Future<Output = Result<PartialObjectMeta<K>, KubeError>> + 'a
     where
@@ -81,7 +81,7 @@ pub trait ApiRetryExt<K> {
 
     fn get_metadata_with_params_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
         gp: &'a GetParams,
     ) -> impl Future<Output = Result<PartialObjectMeta<K>, KubeError>> + 'a
@@ -90,7 +90,7 @@ pub trait ApiRetryExt<K> {
 
     fn get_metadata_opt_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
     ) -> impl Future<Output = Result<Option<PartialObjectMeta<K>>, KubeError>> + 'a
     where
@@ -98,7 +98,7 @@ pub trait ApiRetryExt<K> {
 
     fn get_metadata_opt_with_params_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
         gp: &'a GetParams,
     ) -> impl Future<Output = Result<Option<PartialObjectMeta<K>>, KubeError>> + 'a
@@ -107,7 +107,7 @@ pub trait ApiRetryExt<K> {
 
     fn create_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         pp: &'a PostParams,
         data: &'a K,
     ) -> impl Future<Output = Result<K, KubeError>> + 'a
@@ -116,7 +116,7 @@ pub trait ApiRetryExt<K> {
 
     fn patch_with_retry<'a, P>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
         pp: &'a PatchParams,
         patch: &'a Patch<P>,
@@ -127,7 +127,7 @@ pub trait ApiRetryExt<K> {
 
     fn patch_metadata_with_retry<'a, P>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
         pp: &'a PatchParams,
         patch: &'a Patch<P>,
@@ -138,7 +138,7 @@ pub trait ApiRetryExt<K> {
 
     fn replace_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
         pp: &'a PostParams,
         data: &'a K,
@@ -148,7 +148,7 @@ pub trait ApiRetryExt<K> {
 
     fn watch_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         wp: &'a WatchParams,
         version: &'a str,
     ) -> impl Future<Output = Result<WatchRetryStream<'a, K>, KubeError>> + 'a
@@ -157,7 +157,7 @@ pub trait ApiRetryExt<K> {
 
     fn watch_metadata_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         wp: &'a WatchParams,
         version: &'a str,
     ) -> impl Future<Output = Result<WatchMetadataRetryStream<'a, K>, KubeError>> + 'a
@@ -168,7 +168,7 @@ pub trait ApiRetryExt<K> {
 impl<K> ApiRetryExt<K> for Api<K> {
     fn retry<'a, T: 'a, F>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         operation: F,
     ) -> impl Future<Output = Result<T, KubeError>> + 'a
     where
@@ -180,7 +180,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn list_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         lp: &'a ListParams,
     ) -> impl Future<Output = Result<ObjectList<K>, KubeError>> + 'a
     where
@@ -191,7 +191,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn list_metadata_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         lp: &'a ListParams,
     ) -> impl Future<Output = Result<ObjectList<PartialObjectMeta<K>>, KubeError>> + 'a
     where
@@ -202,7 +202,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn get_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
     ) -> impl Future<Output = Result<K, KubeError>> + 'a
     where
@@ -213,7 +213,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn get_with_params_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
         gp: &'a GetParams,
     ) -> impl Future<Output = Result<K, KubeError>> + 'a
@@ -225,7 +225,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn get_opt_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
     ) -> impl Future<Output = Result<Option<K>, KubeError>> + 'a
     where
@@ -236,7 +236,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn get_metadata_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
     ) -> impl Future<Output = Result<PartialObjectMeta<K>, KubeError>> + 'a
     where
@@ -247,7 +247,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn get_metadata_with_params_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
         gp: &'a GetParams,
     ) -> impl Future<Output = Result<PartialObjectMeta<K>, KubeError>> + 'a
@@ -259,7 +259,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn get_metadata_opt_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
     ) -> impl Future<Output = Result<Option<PartialObjectMeta<K>>, KubeError>> + 'a
     where
@@ -270,7 +270,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn get_metadata_opt_with_params_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
         gp: &'a GetParams,
     ) -> impl Future<Output = Result<Option<PartialObjectMeta<K>>, KubeError>> + 'a
@@ -282,7 +282,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn create_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         pp: &'a PostParams,
         data: &'a K,
     ) -> impl Future<Output = Result<K, KubeError>> + 'a
@@ -294,7 +294,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn patch_with_retry<'a, P>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
         pp: &'a PatchParams,
         patch: &'a Patch<P>,
@@ -308,7 +308,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn patch_metadata_with_retry<'a, P>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
         pp: &'a PatchParams,
         patch: &'a Patch<P>,
@@ -322,7 +322,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn replace_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         name: &'a str,
         pp: &'a PostParams,
         data: &'a K,
@@ -335,7 +335,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn watch_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         wp: &'a WatchParams,
         version: &'a str,
     ) -> impl Future<Output = Result<WatchRetryStream<'a, K>, KubeError>> + 'a
@@ -350,7 +350,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
 
     fn watch_metadata_with_retry<'a>(
         &'a self,
-        policy: RetryPolicy,
+        policy: &'a RetryPolicy,
         wp: &'a WatchParams,
         version: &'a str,
     ) -> impl Future<Output = Result<WatchMetadataRetryStream<'a, K>, KubeError>> + 'a

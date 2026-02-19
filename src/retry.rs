@@ -85,7 +85,7 @@ pub fn default_retryable_error(error: &KubeError) -> bool {
     }
 }
 
-fn next_backoff(current: Duration, policy: RetryPolicy) -> Duration {
+fn next_backoff(current: Duration, policy: &RetryPolicy) -> Duration {
     current
         .mul_f64(policy.backoff_multiplier.max(1.0))
         .min(policy.max_backoff)
@@ -93,7 +93,7 @@ fn next_backoff(current: Duration, policy: RetryPolicy) -> Duration {
 
 /// Retry utility for [`kube::Error`].
 pub async fn retry_with_policy<T, F, Fut>(
-    policy: RetryPolicy,
+    policy: &RetryPolicy,
     mut operation: F,
 ) -> Result<T, KubeError>
 where
@@ -151,7 +151,7 @@ mod tests {
             .with_max_backoff(Duration::ZERO);
 
         let mut attempts = 0usize;
-        let result = retry_with_policy(policy, || {
+        let result = retry_with_policy(&policy, || {
             attempts += 1;
             let current = attempts;
             async move {
@@ -178,7 +178,7 @@ mod tests {
             .with_max_backoff(Duration::ZERO);
 
         let mut attempts = 0usize;
-        let result = retry_with_policy(policy, || {
+        let result = retry_with_policy(&policy, || {
             attempts += 1;
             let current = attempts;
             async move {
@@ -204,7 +204,7 @@ mod tests {
             .with_max_backoff(Duration::ZERO);
 
         let mut attempts = 0usize;
-        let err = retry_with_policy::<(), _, _>(policy, || {
+        let err = retry_with_policy::<(), _, _>(&policy, || {
             attempts += 1;
             async { Err(api_error(404)) }
         })
@@ -226,7 +226,7 @@ mod tests {
             .with_max_backoff(Duration::ZERO);
 
         let mut attempts = 0usize;
-        let err = retry_with_policy::<(), _, _>(policy, || {
+        let err = retry_with_policy::<(), _, _>(&policy, || {
             attempts += 1;
             async { Err(api_error(503)) }
         })
