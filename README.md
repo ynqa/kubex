@@ -46,6 +46,18 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+## For Developers
+
+### Test the completion for [clap.rs](examples/clap.rs)
+
+```bash
+cargo build --example clap
+
+source <(COMPLETE=zsh target/debug/examples/clap)
+
+kubex [TAB]
+```
+
 ## License
 
-This project is released under the MIT License.
+This project is released under MIT License.
