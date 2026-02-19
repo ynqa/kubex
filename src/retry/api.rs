@@ -2,7 +2,7 @@ use std::future::Future;
 
 use futures::{
     future::BoxFuture,
-    stream::{LocalBoxStream, StreamExt},
+    stream::{BoxStream, StreamExt},
 };
 use kube::{
     Api, Error as KubeError,
@@ -16,9 +16,9 @@ use serde::{Serialize, de::DeserializeOwned};
 use super::{RetryPolicy, retry_with_policy};
 
 type WatchRetryResult<K> = Result<WatchEvent<K>, KubeError>;
-type WatchRetryStream<'a, K> = LocalBoxStream<'a, WatchRetryResult<K>>;
+type WatchRetryStream<'a, K> = BoxStream<'a, WatchRetryResult<K>>;
 type WatchMetadataRetryResult<K> = Result<WatchEvent<PartialObjectMeta<K>>, KubeError>;
-type WatchMetadataRetryStream<'a, K> = LocalBoxStream<'a, WatchMetadataRetryResult<K>>;
+type WatchMetadataRetryStream<'a, K> = BoxStream<'a, WatchMetadataRetryResult<K>>;
 
 /// Retry extension methods for `Api<T>`.
 pub trait ApiRetryExt<K> {
@@ -344,7 +344,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
     {
         retry_with_policy(policy, || async {
             let stream = self.watch(wp, version).await?;
-            Ok::<_, KubeError>(stream.boxed_local())
+            Ok::<_, KubeError>(stream.boxed())
         })
     }
 
@@ -359,7 +359,7 @@ impl<K> ApiRetryExt<K> for Api<K> {
     {
         retry_with_policy(policy, || async {
             let stream = self.watch_metadata(wp, version).await?;
-            Ok::<_, KubeError>(stream.boxed_local())
+            Ok::<_, KubeError>(stream.boxed())
         })
     }
 }
