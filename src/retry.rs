@@ -1,4 +1,4 @@
-use std::{future::Future, time::Duration};
+use std::{future::Future, num::NonZeroUsize, time::Duration};
 
 use kube::Error as KubeError;
 use tokio::time::sleep;
@@ -6,11 +6,20 @@ use tokio::time::sleep;
 mod api;
 pub use api::ApiRetryExt;
 
+/// Retry attempt limit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RetryLimit {
+    /// Retry without an attempt cap.
+    Unlimited,
+    /// Retry up to the specified number of attempts.
+    Finite(NonZeroUsize),
+}
+
 /// Retry policy used by [`ApiRetryExt`].
 #[derive(Debug, Clone, Copy)]
 pub struct RetryPolicy {
     /// Maximum number of attempts including the first call.
-    pub max_attempts: usize,
+    pub max_attempts: RetryLimit,
     /// Initial wait duration before the next retry.
     pub initial_backoff: Duration,
     /// Upper bound for exponential backoff wait.
@@ -22,8 +31,13 @@ pub struct RetryPolicy {
 }
 
 impl RetryPolicy {
-    pub fn with_max_attempts(mut self, max_attempts: usize) -> Self {
-        self.max_attempts = max_attempts.max(1);
+    pub fn with_max_attempts(mut self, max_attempts: NonZeroUsize) -> Self {
+        self.max_attempts = RetryLimit::Finite(max_attempts);
+        self
+    }
+
+    pub fn with_unlimited_attempts(mut self) -> Self {
+        self.max_attempts = RetryLimit::Unlimited;
         self
     }
 
@@ -51,7 +65,7 @@ impl RetryPolicy {
 impl Default for RetryPolicy {
     fn default() -> Self {
         Self {
-            max_attempts: 5,
+            max_attempts: RetryLimit::Finite(NonZeroUsize::new(5).unwrap()),
             initial_backoff: Duration::from_millis(200),
             max_backoff: Duration::from_secs(5),
             backoff_multiplier: 2.0,
@@ -86,14 +100,20 @@ where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T, KubeError>>,
 {
-    let max_attempts = policy.max_attempts.max(1);
+    let max_attempts = policy.max_attempts;
     let mut backoff = policy.initial_backoff.min(policy.max_backoff);
+    let mut attempts = 0usize;
 
-    for attempt in 1..=max_attempts {
+    loop {
+        attempts = attempts.saturating_add(1);
         match operation().await {
             Ok(value) => return Ok(value),
             Err(error) => {
-                if attempt == max_attempts || !(policy.is_retryable)(&error) {
+                let exhausted = match max_attempts {
+                    RetryLimit::Unlimited => false,
+                    RetryLimit::Finite(max_attempts) => attempts >= max_attempts.get(),
+                };
+                if exhausted || !(policy.is_retryable)(&error) {
                     return Err(error);
                 }
                 sleep(backoff).await;
@@ -101,17 +121,19 @@ where
             }
         }
     }
-
-    unreachable!("retry loop exhausted unexpectedly")
 }
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{num::NonZeroUsize, time::Duration};
 
     use kube::{Error as KubeError, core::Status};
 
     use super::{RetryPolicy, default_retryable_error, retry_with_policy};
+
+    fn max_attempts(attempts: usize) -> NonZeroUsize {
+        NonZeroUsize::new(attempts).expect("max attempts must be > 0")
+    }
 
     fn api_error(code: u16) -> KubeError {
         KubeError::Api(
@@ -124,7 +146,7 @@ mod tests {
     #[tokio::test]
     async fn retries_until_success() {
         let policy = RetryPolicy::default()
-            .with_max_attempts(5)
+            .with_max_attempts(max_attempts(5))
             .with_initial_backoff(Duration::ZERO)
             .with_max_backoff(Duration::ZERO);
 
@@ -148,9 +170,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn retries_indefinitely_with_unlimited_limit() {
+        let policy = RetryPolicy::default()
+            .with_max_attempts(max_attempts(2))
+            .with_unlimited_attempts()
+            .with_initial_backoff(Duration::ZERO)
+            .with_max_backoff(Duration::ZERO);
+
+        let mut attempts = 0usize;
+        let result = retry_with_policy(policy, || {
+            attempts += 1;
+            let current = attempts;
+            async move {
+                if current < 7 {
+                    Err(api_error(503))
+                } else {
+                    Ok(current)
+                }
+            }
+        })
+        .await
+        .expect("unlimited retry should eventually succeed");
+
+        assert_eq!(result, 7);
+        assert_eq!(attempts, 7);
+    }
+
+    #[tokio::test]
     async fn stops_on_non_retryable_api_error() {
         let policy = RetryPolicy::default()
-            .with_max_attempts(5)
+            .with_max_attempts(max_attempts(5))
             .with_initial_backoff(Duration::ZERO)
             .with_max_backoff(Duration::ZERO);
 
@@ -172,7 +221,7 @@ mod tests {
     #[tokio::test]
     async fn exhausts_attempts_on_retryable_error() {
         let policy = RetryPolicy::default()
-            .with_max_attempts(3)
+            .with_max_attempts(max_attempts(3))
             .with_initial_backoff(Duration::ZERO)
             .with_max_backoff(Duration::ZERO);
 
