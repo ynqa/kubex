@@ -1,71 +1,44 @@
-use futures::{
-    future::try_join_all,
-    stream::{self, StreamExt},
-};
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::APIResource;
-use kube::Client;
+use std::{fs, path::Path};
 
-pub struct DiscoverClient {
-    client: Client,
+use anyhow::Context;
+use k8s_openapi::{apimachinery::pkg::apis::meta::v1::APIResource, jiff::Timestamp};
+use serde::{Deserialize, Serialize};
+
+pub mod client;
+
+/// Represent the discovery cache file format,
+/// which includes the timestamp of when the API resources were fetched
+/// and the list of resources.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DiscoveryCacheFile {
+    /// The timestamp when the API resources were saved to the cache.
+    pub updated_at: Timestamp,
+    /// The list of API resources discovered from the Kubernetes cluster.
+    pub resources: Vec<APIResource>,
 }
 
-impl DiscoverClient {
-    pub fn new(client: Client) -> Self {
-        Self { client }
+/// Load the discovery cache from a file at the specified path.
+pub fn load_discovery_cache(path: &Path) -> anyhow::Result<DiscoveryCacheFile> {
+    let cache_data = fs::read_to_string(path).context("Failed to read discovery cache file")?;
+    serde_json::from_str(&cache_data).context("Failed to parse discovery cache file")
+}
+
+/// Save the discovery cache to a file at the specified path
+pub fn save_discovery_cache(path: &Path, resources: &[APIResource]) -> anyhow::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create cache directory at {:?}", parent))?;
     }
 
-    pub async fn list_api_resources(&self) -> anyhow::Result<Vec<APIResource>> {
-        Ok(self
-            .list_api_groups_resources()
-            .await?
-            .into_iter()
-            .chain(self.list_core_api_resources().await?)
-            // Filter out subresources.
-            .filter(|resource| !resource.name.contains("/"))
-            .collect())
-    }
+    let cache_file = DiscoveryCacheFile {
+        updated_at: Timestamp::now(),
+        resources: resources.to_vec(),
+    };
 
-    pub async fn list_api_groups_resources(&self) -> anyhow::Result<Vec<APIResource>> {
-        let groups = self.client.list_api_groups().await?.groups;
-        let resources = stream::iter(groups)
-            .flat_map(|group| stream::iter(group.versions))
-            .then(|version| async move {
-                let mut resources = self
-                    .client
-                    .list_api_group_resources(&version.group_version)
-                    .await?;
-                // NOTE: For some reason, `version` and `group` are None, so we need to set them manually.
-                for resource in &mut resources.resources {
-                    if let Some((group, version)) = version.group_version.split_once('/') {
-                        resource.group = Some(group.to_string());
-                        resource.version = Some(version.to_string());
-                    }
-                }
-                Ok::<_, anyhow::Error>(resources)
-            })
-            .flat_map(|api_resource_list| {
-                stream::iter(api_resource_list.unwrap_or_default().resources)
-            })
-            .collect::<Vec<_>>()
-            .await;
-        Ok(resources)
-    }
+    let cache_data = serde_json::to_string(&cache_file)
+        .context("Failed to serialize discovery cache data to JSON")?;
 
-    pub async fn list_core_api_resources(&self) -> anyhow::Result<Vec<APIResource>> {
-        let versions = self.client.list_core_api_versions().await?.versions;
-
-        Ok(try_join_all(versions.into_iter().map(|version| async move {
-            let mut resources = self.client.list_core_api_resources(&version).await?;
-            // NOTE: For some reason, `version` is None, so we need to set them manually.
-            for resource in &mut resources.resources {
-                resource.group = Some("core".to_string());
-                resource.version = Some(version.clone());
-            }
-            Ok::<_, anyhow::Error>(resources)
-        }))
-        .await?
-        .into_iter()
-        .flat_map(|api_resource_list| api_resource_list.resources)
-        .collect())
-    }
+    fs::write(path, cache_data)
+        .with_context(|| format!("Failed to write discovery cache to {:?}", path))?;
+    Ok(())
 }

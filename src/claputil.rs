@@ -1,9 +1,11 @@
-use std::ffi::OsStr;
+use std::{collections::HashSet, ffi::OsStr, path::PathBuf, time::Duration};
 
 use clap_complete::engine::{ArgValueCompleter, CompletionCandidate};
 use k8s_openapi::api::core::v1::Namespace;
 use kube::{Config, config::Kubeconfig};
 use tokio::{runtime::Handle, task};
+
+use crate::ResourceTargetSpec;
 
 /// Create an `ArgValueCompleter` that lists contexts from the active kubeconfig.
 pub fn context_value_completer() -> ArgValueCompleter {
@@ -94,5 +96,51 @@ pub fn namespace_value_completer() -> ArgValueCompleter {
                 .map(|rt| rt.block_on(namespaces_future))
                 .unwrap_or_default(),
         }
+    })
+}
+
+/// Create an `ArgValueCompleter` that lists Kubernetes resources.
+///
+/// Completion candidates are generated from `singular_name` only.
+/// This completer works with comma-delimited values and completes the current token.
+/// When `cache_path` is `Some`, `cache_path` and `cache_ttl` are forwarded to
+/// `resolve_requested_resources_from_cache`; when `None`, it returns no candidates.
+/// Cache is the only source; no live API discovery is performed here.
+pub fn resource_value_completer(
+    cache_path: Option<PathBuf>,
+    cache_ttl: Option<Duration>,
+) -> ArgValueCompleter {
+    ArgValueCompleter::new(move |input: &OsStr| -> Vec<CompletionCandidate> {
+        let Some(cache_path) = cache_path.as_ref() else {
+            return Vec::new();
+        };
+
+        let current_token = input.to_string_lossy().trim().to_string();
+
+        let resources = match crate::resolve_requested_resources_from_cache(
+            &ResourceTargetSpec::AllResources,
+            cache_path.as_path(),
+            cache_ttl,
+        ) {
+            Ok(resources) => resources,
+            Err(_) => return Vec::new(),
+        };
+
+        let mut seen = HashSet::new();
+        resources
+            .into_iter()
+            .filter_map(|resource| {
+                let singular_name = resource.singular_name.trim();
+                if singular_name.is_empty() {
+                    None
+                } else {
+                    Some(singular_name.to_string())
+                }
+            })
+            .filter(|candidate| candidate.starts_with(&current_token))
+            .filter(|candidate| seen.insert(candidate.clone()))
+            // Append a comma so selecting a candidate keeps typing on the next value.
+            .map(CompletionCandidate::new)
+            .collect()
     })
 }
